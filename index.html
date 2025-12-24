@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Santa's Midnight Dash 3D</title>
+
 <style>
 html, body {
   margin: 0;
@@ -11,6 +12,7 @@ html, body {
   font-family: system-ui;
 }
 
+/* ===== OVERLAY ===== */
 #overlay {
   position: fixed;
   inset: 0;
@@ -43,11 +45,14 @@ html, body {
   top: 10px;
   left: 10px;
   color: white;
+  z-index: 5;
 }
 </style>
 </head>
+
 <body>
 
+<!-- ===== UI ===== -->
 <div id="overlay">
   <h1>🎄 Santa’s Midnight Dash 🎄</h1>
   <button id="startBtn">START GAME</button>
@@ -56,6 +61,7 @@ html, body {
 
 <div id="ui"></div>
 
+<!-- ===== THREE.JS ===== -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/postprocessing/EffectComposer.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/postprocessing/RenderPass.js"></script>
@@ -77,6 +83,13 @@ renderer.setPixelRatio(devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.appendChild(renderer.domElement);
+
+/* 🔑 CRITICAL FIX: CANVAS LAYERING */
+renderer.domElement.style.position = "fixed";
+renderer.domElement.style.top = "0";
+renderer.domElement.style.left = "0";
+renderer.domElement.style.zIndex = "0";
+renderer.domElement.style.pointerEvents = "none";
 
 /* =====================
    POST PROCESSING
@@ -154,11 +167,9 @@ let speed = 0.35;
 let score = 0;
 let combo = 1;
 
-// Jump physics
 let yVelocity = 0;
 let grounded = true;
 
-// Slide state
 let sliding = false;
 let slideTimer = 0;
 
@@ -207,12 +218,10 @@ function animate() {
     return;
   }
 
-  /* ---- Movement ---- */
   if (keys.ArrowLeft) santa.position.x -= 0.2;
   if (keys.ArrowRight) santa.position.x += 0.2;
   santa.position.x = THREE.MathUtils.clamp(santa.position.x, -5, 5);
 
-  /* ---- Jump ---- */
   if ((keys.Space || keys.ArrowUp) && grounded) {
     yVelocity = 0.45;
     grounded = false;
@@ -227,7 +236,6 @@ function animate() {
     grounded = true;
   }
 
-  /* ---- Slide ---- */
   if (keys.ArrowDown && grounded && !sliding) {
     sliding = true;
     slideTimer = 20;
@@ -242,11 +250,9 @@ function animate() {
     }
   }
 
-  /* ---- Spawning ---- */
   if (Math.random() < 0.02) spawnObstacle();
   if (Math.random() < 0.015) spawnGift();
 
-  /* ---- Obstacles ---- */
   obstacles.forEach((o, i) => {
     o.position.z += speed;
     if (o.position.z > 5) {
@@ -264,7 +270,6 @@ function animate() {
     if (hit) reset();
   });
 
-  /* ---- Gifts ---- */
   gifts.forEach((g, i) => {
     g.position.z += speed;
     g.rotation.y += 0.05;
@@ -309,9 +314,10 @@ function reset() {
 }
 
 /* =====================
-   START
+   START BUTTON
 ===================== */
 document.getElementById("startBtn").onclick = () => {
+  renderer.domElement.style.pointerEvents = "auto";
   document.getElementById("overlay").style.display = "none";
   started = true;
 };
