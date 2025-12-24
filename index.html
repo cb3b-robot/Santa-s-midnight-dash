@@ -12,8 +12,8 @@ html, body {
   font-family: system-ui;
 }
 
-/* ===== OVERLAY ===== */
-#overlay {
+/* ===== GAME OVER SCREEN ===== */
+.overlay {
   position: fixed;
   inset: 0;
   display: flex;
@@ -21,23 +21,24 @@ html, body {
   align-items: center;
   justify-content: center;
   background: radial-gradient(circle, #0b1d3a, #000);
-  z-index: 10;
   color: white;
+  z-index: 10;
 }
 
-#overlay h1 {
-  font-size: 48px;
-  margin-bottom: 20px;
-}
+.hidden { display: none; }
 
-#startBtn {
-  font-size: 24px;
+h1 { font-size: 48px; margin: 10px; }
+p { opacity: 0.8; }
+
+button {
+  font-size: 22px;
   padding: 14px 32px;
   border: none;
   border-radius: 10px;
   cursor: pointer;
   background: linear-gradient(135deg, #ff4444, #cc0000);
   color: white;
+  margin-top: 15px;
 }
 
 #ui {
@@ -52,16 +53,16 @@ html, body {
 
 <body>
 
-<!-- ===== UI ===== -->
-<div id="overlay">
-  <h1>🎄 Santa’s Midnight Dash 🎄</h1>
-  <button id="startBtn">START GAME</button>
-  <p style="opacity:.7">← → move | ↑ jump | ↓ slide</p>
+<!-- ===== GAME OVER ===== -->
+<div id="gameOverScreen" class="overlay hidden">
+  <h1>❄️ Game Over ❄️</h1>
+  <p id="finalScore"></p>
+  <button id="restartBtn">RESTART</button>
 </div>
 
 <div id="ui"></div>
 
-<!-- ===== THREE.JS ===== -->
+<!-- ===== THREE ===== -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/postprocessing/EffectComposer.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/postprocessing/RenderPass.js"></script>
@@ -69,7 +70,7 @@ html, body {
 
 <script>
 /* =====================
-   CORE SETUP
+   CORE
 ===================== */
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x020611, 10, 80);
@@ -84,15 +85,14 @@ renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.appendChild(renderer.domElement);
 
-/* 🔑 CRITICAL FIX: CANVAS LAYERING */
+/* Canvas layering */
 renderer.domElement.style.position = "fixed";
-renderer.domElement.style.top = "0";
-renderer.domElement.style.left = "0";
+renderer.domElement.style.inset = "0";
 renderer.domElement.style.zIndex = "0";
-renderer.domElement.style.pointerEvents = "none";
+renderer.domElement.style.pointerEvents = "auto";
 
 /* =====================
-   POST PROCESSING
+   POST
 ===================== */
 const composer = new THREE.EffectComposer(renderer);
 composer.addPass(new THREE.RenderPass(scene, camera));
@@ -111,10 +111,9 @@ addEventListener("resize", () => {
 });
 
 /* =====================
-   LIGHTING
+   LIGHTS
 ===================== */
 scene.add(new THREE.AmbientLight(0x404080, 0.4));
-
 const moon = new THREE.DirectionalLight(0xbfd9ff, 2);
 moon.position.set(10, 20, -10);
 moon.castShadow = true;
@@ -132,21 +131,18 @@ ground.receiveShadow = true;
 scene.add(ground);
 
 /* =====================
-   PLAYER (SANTA)
+   PLAYER
 ===================== */
 const santa = new THREE.Group();
-
 const body = new THREE.Mesh(
   new THREE.BoxGeometry(1, 1.5, 0.8),
   new THREE.MeshStandardMaterial({ color: 0xcc0000 })
 );
-
 const head = new THREE.Mesh(
   new THREE.SphereGeometry(0.4, 24, 24),
   new THREE.MeshStandardMaterial({ color: 0xffddcc })
 );
 head.position.y = 1.2;
-
 body.castShadow = head.castShadow = true;
 santa.add(body, head);
 santa.position.y = 1;
@@ -160,36 +156,32 @@ addEventListener("keydown", e => keys[e.code] = true);
 addEventListener("keyup", e => keys[e.code] = false);
 
 /* =====================
-   GAME STATE
+   STATE
 ===================== */
-let started = false;
+let gameState = "playing"; // auto-start
 let speed = 0.35;
 let score = 0;
 let combo = 1;
 
 let yVelocity = 0;
 let grounded = true;
-
 let sliding = false;
 let slideTimer = 0;
 
 /* =====================
-   WORLD OBJECTS
+   OBJECTS
 ===================== */
 const obstacles = [];
 const gifts = [];
 
 function spawnObstacle() {
   const tall = Math.random() < 0.5;
-
   const o = new THREE.Mesh(
     new THREE.BoxGeometry(1, tall ? 2 : 1, 1),
     new THREE.MeshStandardMaterial({ color: 0x333333 })
   );
-
   o.userData.type = tall ? "jump" : "slide";
   o.position.set(rand(-4, 4), o.geometry.parameters.height / 2, -60);
-  o.castShadow = true;
   scene.add(o);
   obstacles.push(o);
 }
@@ -197,10 +189,7 @@ function spawnObstacle() {
 function spawnGift() {
   const g = new THREE.Mesh(
     new THREE.SphereGeometry(0.4, 16, 16),
-    new THREE.MeshStandardMaterial({
-      color: 0x00ff00,
-      emissive: 0x00aa00
-    })
+    new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00aa00 })
   );
   g.position.set(rand(-4, 4), 1.5, -60);
   scene.add(g);
@@ -213,7 +202,7 @@ function spawnGift() {
 function animate() {
   requestAnimationFrame(animate);
 
-  if (!started) {
+  if (gameState !== "playing") {
     composer.render();
     return;
   }
@@ -242,12 +231,9 @@ function animate() {
     santa.scale.y = 0.5;
   }
 
-  if (sliding) {
-    slideTimer--;
-    if (slideTimer <= 0) {
-      sliding = false;
-      santa.scale.y = 1;
-    }
+  if (sliding && --slideTimer <= 0) {
+    sliding = false;
+    santa.scale.y = 1;
   }
 
   if (Math.random() < 0.02) spawnObstacle();
@@ -255,35 +241,26 @@ function animate() {
 
   obstacles.forEach((o, i) => {
     o.position.z += speed;
-    if (o.position.z > 5) {
-      scene.remove(o);
-      obstacles.splice(i, 1);
-    }
+    if (o.position.z > 5) obstacles.splice(i, 1), scene.remove(o);
 
     const hit =
       o.position.distanceTo(santa.position) < 1 &&
-      !(
-        (o.userData.type === "jump" && santa.position.y > 1.8) ||
-        (o.userData.type === "slide" && sliding)
-      );
+      !((o.userData.type === "jump" && santa.position.y > 1.8) ||
+        (o.userData.type === "slide" && sliding));
 
-    if (hit) reset();
+    if (hit) gameOver();
   });
 
   gifts.forEach((g, i) => {
     g.position.z += speed;
     g.rotation.y += 0.05;
 
-    if (g.position.z > 5) {
-      scene.remove(g);
-      gifts.splice(i, 1);
-    }
-
+    if (g.position.z > 5) gifts.splice(i, 1), scene.remove(g);
     if (g.position.distanceTo(santa.position) < 1) {
       score += 100 * combo;
       combo += 0.5;
-      scene.remove(g);
       gifts.splice(i, 1);
+      scene.remove(g);
     }
   });
 
@@ -300,27 +277,36 @@ function animate() {
 }
 
 /* =====================
-   RESET
+   GAME FLOW
 ===================== */
-function reset() {
+function gameOver() {
+  gameState = "dead";
+  document.getElementById("finalScore").textContent =
+    `Final Score: ${Math.floor(score)}`;
+  document.getElementById("gameOverScreen").classList.remove("hidden");
+}
+
+function restart() {
   obstacles.forEach(o => scene.remove(o));
   gifts.forEach(g => scene.remove(g));
   obstacles.length = gifts.length = 0;
+
   score = 0;
   combo = 1;
-  santa.position.set(0, 1, 0);
   yVelocity = 0;
   grounded = true;
+  sliding = false;
+  santa.scale.y = 1;
+  santa.position.set(0, 1, 0);
+
+  document.getElementById("gameOverScreen").classList.add("hidden");
+  gameState = "playing";
 }
 
 /* =====================
-   START BUTTON
+   UI
 ===================== */
-document.getElementById("startBtn").onclick = () => {
-  renderer.domElement.style.pointerEvents = "auto";
-  document.getElementById("overlay").style.display = "none";
-  started = true;
-};
+restartBtn.onclick = restart;
 
 /* =====================
    UTILS
@@ -329,9 +315,6 @@ function rand(a, b) {
   return Math.random() * (b - a) + a;
 }
 
-/* =====================
-   BOOTSTRAP
-===================== */
 requestAnimationFrame(animate);
 </script>
 </body>
