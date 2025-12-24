@@ -17,7 +17,6 @@ html, body {
   top: 10px;
   left: 10px;
   color: white;
-  font-size: 16px;
 }
 </style>
 </head>
@@ -35,7 +34,7 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x020611, 15, 140);
 
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
-camera.position.set(0, 4.5, 9);
+camera.position.set(0, 5, 9);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -63,25 +62,25 @@ moon.castShadow = true;
 scene.add(moon);
 
 /* =====================
-   ROOFTOP PATH
+   ROOF
 ===================== */
 const ROOF_Y = 2.5;
 
-const rooftopPath = new THREE.Mesh(
+const roof = new THREE.Mesh(
   new THREE.BoxGeometry(14, 0.5, 400),
   new THREE.MeshStandardMaterial({ color: 0xf0f0f0 })
 );
-rooftopPath.position.y = ROOF_Y - 0.25;
-rooftopPath.receiveShadow = true;
-scene.add(rooftopPath);
+roof.position.y = ROOF_Y - 0.25;
+roof.receiveShadow = true;
+scene.add(roof);
 
 /* =====================
-   PLAYER
+   SANTA
 ===================== */
 const santa = new THREE.Group();
 
 const body = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 1.5, 0.8),
+  new THREE.BoxGeometry(1, 1.6, 0.8),
   new THREE.MeshStandardMaterial({ color: 0xcc0000 })
 );
 
@@ -89,11 +88,10 @@ const head = new THREE.Mesh(
   new THREE.SphereGeometry(0.4, 24, 24),
   new THREE.MeshStandardMaterial({ color: 0xffddcc })
 );
-head.position.y = 1.2;
+head.position.y = 1.4;
 
-body.castShadow = head.castShadow = true;
 santa.add(body, head);
-santa.position.set(0, ROOF_Y, 0);
+santa.position.set(0, ROOF_Y + 0.8, 0);
 scene.add(santa);
 
 /* =====================
@@ -106,91 +104,70 @@ addEventListener("keyup", e => keys[e.code] = false);
 /* =====================
    STATE
 ===================== */
-let speed = 0.4;
+let speed = 0.45;
 let score = 0;
 let combo = 1;
 
-let yVelocity = 0;
+let yVel = 0;
 let grounded = true;
 
 /* =====================
-   WORLD
+   WORLD OBJECTS
 ===================== */
 const houses = [];
+const chimneys = [];
 const gifts = [];
 
 /* =====================
-   HOUSE + CHIMNEY (FIXED)
+   HOUSE (DECOR)
 ===================== */
 function createHouse(x, z) {
-  const house = new THREE.Group();
-
-  const base = new THREE.Mesh(
+  const house = new THREE.Mesh(
     new THREE.BoxGeometry(4, 3, 4),
-    new THREE.MeshStandardMaterial({ color: 0x8b1c1c })
+    new THREE.MeshStandardMaterial({ color: 0x7a0c0c })
   );
-  base.position.y = -1.5;
-  base.castShadow = true;
-
-  const roof = new THREE.Mesh(
-    new THREE.BoxGeometry(4.4, 0.6, 4.4),
-    new THREE.MeshStandardMaterial({ color: 0xffffff })
-  );
-  roof.position.y = 0;
-  roof.castShadow = true;
-
-  const chimney = new THREE.Mesh(
-    new THREE.BoxGeometry(0.8, 1.6, 0.8),
-    new THREE.MeshStandardMaterial({ color: 0x333333 })
-  );
-  chimney.position.set(1.2, 1, 0);
-  chimney.castShadow = true;
-
-  house.add(base, roof, chimney);
-  house.position.set(x, ROOF_Y - 0.3, z);
-
+  house.position.set(x, ROOF_Y - 2, z);
   scene.add(house);
   houses.push(house);
 
-  if (Math.random() < 0.7) spawnGift(house, chimney.position.clone());
+  spawnChimney(x, z);
+}
+
+/* =====================
+   CHIMNEY (OBSTACLE)
+===================== */
+function spawnChimney(x, z) {
+  const c = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 1.8, 0.9),
+    new THREE.MeshStandardMaterial({ color: 0x333333 })
+  );
+  c.position.set(x, ROOF_Y + 0.9, z);
+  scene.add(c);
+  chimneys.push(c);
+
+  if (Math.random() < 0.8) spawnGift(x, z);
 }
 
 /* =====================
    GIFT
 ===================== */
-function spawnGift(house, localPos) {
-  const gift = new THREE.Group();
-
-  const box = new THREE.Mesh(
-    new THREE.BoxGeometry(0.7, 0.7, 0.7),
+function spawnGift(x, z) {
+  const g = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 0.6, 0.6),
     new THREE.MeshStandardMaterial({
       color: 0x00ff00,
       emissive: 0x006600
     })
   );
-
-  const ribbon1 = new THREE.Mesh(
-    new THREE.BoxGeometry(0.1, 0.8, 0.8),
-    new THREE.MeshStandardMaterial({ color: 0xffd700 })
-  );
-
-  const ribbon2 = new THREE.Mesh(
-    new THREE.BoxGeometry(0.8, 0.8, 0.1),
-    new THREE.MeshStandardMaterial({ color: 0xffd700 })
-  );
-
-  gift.add(box, ribbon1, ribbon2);
-  gift.position.copy(localPos);
-  gift.position.y += 1;
-
-  house.add(gift);
-  gifts.push(gift);
+  g.position.set(x, ROOF_Y + 2.3, z);
+  scene.add(g);
+  gifts.push(g);
 }
 
 /* =====================
    POPULATE
 ===================== */
-for (let z = -20; z > -260; z -= 20) {
+for (let z = -30; z > -260; z -= 20) {
   createHouse(-6, z);
   createHouse(6, z);
 }
@@ -201,48 +178,52 @@ for (let z = -20; z > -260; z -= 20) {
 function animate() {
   requestAnimationFrame(animate);
 
-  if (keys.ArrowLeft) santa.position.x -= 0.2;
-  if (keys.ArrowRight) santa.position.x += 0.2;
+  if (keys.ArrowLeft) santa.position.x -= 0.22;
+  if (keys.ArrowRight) santa.position.x += 0.22;
   santa.position.x = THREE.MathUtils.clamp(santa.position.x, -4, 4);
 
   if ((keys.Space || keys.ArrowUp) && grounded) {
-    yVelocity = 0.5;
+    yVel = 0.55;
     grounded = false;
   }
 
-  yVelocity -= 0.025;
-  santa.position.y += yVelocity;
+  yVel -= 0.03;
+  santa.position.y += yVel;
 
-  if (santa.position.y <= ROOF_Y) {
-    santa.position.y = ROOF_Y;
-    yVelocity = 0;
+  if (santa.position.y <= ROOF_Y + 0.8) {
+    santa.position.y = ROOF_Y + 0.8;
+    yVel = 0;
     grounded = true;
   }
 
-  houses.forEach(h => {
-    h.position.z += speed;
-    if (h.position.z > 10) h.position.z -= 260;
+  [...houses, ...chimneys, ...gifts].forEach(o => {
+    o.position.z += speed;
+    if (o.position.z > 12) o.position.z -= 260;
+  });
+
+  chimneys.forEach(c => {
+    if (c.position.distanceTo(santa.position) < 1.1) {
+      location.reload();
+    }
   });
 
   gifts.forEach((g, i) => {
-    g.rotation.y += 0.05;
-    const worldPos = g.getWorldPosition(new THREE.Vector3());
-    if (worldPos.distanceTo(santa.position) < 1) {
+    if (g.position.distanceTo(santa.position) < 1) {
       score += 100 * combo;
       combo += 0.5;
-      g.parent.remove(g);
+      scene.remove(g);
       gifts.splice(i, 1);
     }
   });
 
-  combo = Math.max(1, combo - 0.005);
-  score += 0.2;
+  combo = Math.max(1, combo - 0.006);
+  score += 0.25;
 
   document.getElementById("ui").innerHTML =
     `Score: ${Math.floor(score)}<br>Combo: x${combo.toFixed(1)}`;
 
   camera.position.x += (santa.position.x - camera.position.x) * 0.08;
-  camera.lookAt(santa.position.x, ROOF_Y + 0.6, 0);
+  camera.lookAt(santa.position.x, ROOF_Y + 1, 0);
 
   renderer.render(scene, camera);
 }
