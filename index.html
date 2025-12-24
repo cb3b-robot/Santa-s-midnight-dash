@@ -36,11 +36,6 @@ html, body {
   cursor: pointer;
   background: linear-gradient(135deg, #ff4444, #cc0000);
   color: white;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-}
-
-#startBtn:hover {
-  transform: scale(1.05);
 }
 
 #ui {
@@ -56,7 +51,7 @@ html, body {
 <div id="overlay">
   <h1>🎄 Santa’s Midnight Dash 🎄</h1>
   <button id="startBtn">START GAME</button>
-  <p style="opacity:.7">← → Move</p>
+  <p style="opacity:.7">← → move | ↑ jump | ↓ slide</p>
 </div>
 
 <div id="ui"></div>
@@ -81,7 +76,6 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
 document.body.appendChild(renderer.domElement);
 
 /* =====================
@@ -131,12 +125,12 @@ const santa = new THREE.Group();
 
 const body = new THREE.Mesh(
   new THREE.BoxGeometry(1, 1.5, 0.8),
-  new THREE.MeshStandardMaterial({ color: 0xcc0000, emissive: 0x330000 })
+  new THREE.MeshStandardMaterial({ color: 0xcc0000 })
 );
 
 const head = new THREE.Mesh(
   new THREE.SphereGeometry(0.4, 24, 24),
-  new THREE.MeshStandardMaterial({ color: 0xffddcc, emissive: 0x331100 })
+  new THREE.MeshStandardMaterial({ color: 0xffddcc })
 );
 head.position.y = 1.2;
 
@@ -146,60 +140,43 @@ santa.position.y = 1;
 scene.add(santa);
 
 /* =====================
+   INPUT
+===================== */
+const keys = {};
+addEventListener("keydown", e => keys[e.code] = true);
+addEventListener("keyup", e => keys[e.code] = false);
+
+/* =====================
+   GAME STATE
+===================== */
+let started = false;
+let speed = 0.35;
+let score = 0;
+let combo = 1;
+
+// Jump physics
+let yVelocity = 0;
+let grounded = true;
+
+// Slide state
+let sliding = false;
+let slideTimer = 0;
+
+/* =====================
    WORLD OBJECTS
 ===================== */
-const scenery = [];
 const obstacles = [];
 const gifts = [];
 
-function spawnTree(z) {
-  const t = new THREE.Mesh(
-    new THREE.ConeGeometry(0.8, 2.5, 8),
-    new THREE.MeshStandardMaterial({ color: 0x0b5d1e })
-  );
-  t.position.set(rand(-10, 10), 1.25, z);
-  t.castShadow = true;
-  scene.add(t);
-  scenery.push(t);
-}
-
-function spawnHouse(z) {
-  const h = new THREE.Group();
-
-  const base = new THREE.Mesh(
-    new THREE.BoxGeometry(2, 1.5, 2),
-    new THREE.MeshStandardMaterial({ color: 0x552200 })
-  );
-
-  const roof = new THREE.Mesh(
-    new THREE.ConeGeometry(1.8, 1, 4),
-    new THREE.MeshStandardMaterial({ color: 0x330000 })
-  );
-  roof.position.y = 1.25;
-  roof.rotation.y = Math.PI / 4;
-
-  const window = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.6, 0.6),
-    new THREE.MeshStandardMaterial({
-      color: 0xffffaa,
-      emissive: 0xffff55
-    })
-  );
-  window.position.set(0, 0, 1.01);
-
-  base.castShadow = roof.castShadow = true;
-  h.add(base, roof, window);
-
-  h.position.set(rand(-12, 12), 0.75, z);
-  scene.add(h);
-  scenery.push(h);
-}
-
 function spawnObstacle() {
+  const tall = Math.random() < 0.5;
+
   const o = new THREE.Mesh(
-    new THREE.BoxGeometry(1, rand(1, 2), 1),
+    new THREE.BoxGeometry(1, tall ? 2 : 1, 1),
     new THREE.MeshStandardMaterial({ color: 0x333333 })
   );
+
+  o.userData.type = tall ? "jump" : "slide";
   o.position.set(rand(-4, 4), o.geometry.parameters.height / 2, -60);
   o.castShadow = true;
   scene.add(o);
@@ -220,68 +197,83 @@ function spawnGift() {
 }
 
 /* =====================
-   INPUT
-===================== */
-const keys = {};
-addEventListener("keydown", e => keys[e.code] = true);
-addEventListener("keyup", e => keys[e.code] = false);
-
-/* =====================
-   GAME STATE
-===================== */
-let started = false;
-let speed = 0.35;
-let score = 0;
-let combo = 1;
-
-/* =====================
    MAIN LOOP
 ===================== */
 function animate() {
   requestAnimationFrame(animate);
 
-  // Always render (even before start)
   if (!started) {
     composer.render();
     return;
   }
 
+  /* ---- Movement ---- */
   if (keys.ArrowLeft) santa.position.x -= 0.2;
   if (keys.ArrowRight) santa.position.x += 0.2;
   santa.position.x = THREE.MathUtils.clamp(santa.position.x, -5, 5);
 
-  camera.position.x += (santa.position.x - camera.position.x) * 0.08;
-  camera.lookAt(santa.position.x, 1.2, 0);
+  /* ---- Jump ---- */
+  if ((keys.Space || keys.ArrowUp) && grounded) {
+    yVelocity = 0.45;
+    grounded = false;
+  }
 
-  if (Math.random() < 0.03) spawnTree(-100);
-  if (Math.random() < 0.01) spawnHouse(-120);
+  yVelocity -= 0.02;
+  santa.position.y += yVelocity;
+
+  if (santa.position.y <= 1) {
+    santa.position.y = 1;
+    yVelocity = 0;
+    grounded = true;
+  }
+
+  /* ---- Slide ---- */
+  if (keys.ArrowDown && grounded && !sliding) {
+    sliding = true;
+    slideTimer = 20;
+    santa.scale.y = 0.5;
+  }
+
+  if (sliding) {
+    slideTimer--;
+    if (slideTimer <= 0) {
+      sliding = false;
+      santa.scale.y = 1;
+    }
+  }
+
+  /* ---- Spawning ---- */
   if (Math.random() < 0.02) spawnObstacle();
   if (Math.random() < 0.015) spawnGift();
 
-  scenery.forEach((s, i) => {
-    s.position.z += speed;
-    if (s.position.z > 15) {
-      scene.remove(s);
-      scenery.splice(i, 1);
-    }
-  });
-
+  /* ---- Obstacles ---- */
   obstacles.forEach((o, i) => {
     o.position.z += speed;
     if (o.position.z > 5) {
       scene.remove(o);
       obstacles.splice(i, 1);
     }
-    if (o.position.distanceTo(santa.position) < 1) reset();
+
+    const hit =
+      o.position.distanceTo(santa.position) < 1 &&
+      !(
+        (o.userData.type === "jump" && santa.position.y > 1.8) ||
+        (o.userData.type === "slide" && sliding)
+      );
+
+    if (hit) reset();
   });
 
+  /* ---- Gifts ---- */
   gifts.forEach((g, i) => {
     g.position.z += speed;
     g.rotation.y += 0.05;
+
     if (g.position.z > 5) {
       scene.remove(g);
       gifts.splice(i, 1);
     }
+
     if (g.position.distanceTo(santa.position) < 1) {
       score += 100 * combo;
       combo += 0.5;
@@ -296,6 +288,9 @@ function animate() {
   document.getElementById("ui").innerHTML =
     `Score: ${Math.floor(score)}<br>Combo: x${combo.toFixed(1)}`;
 
+  camera.position.x += (santa.position.x - camera.position.x) * 0.08;
+  camera.lookAt(santa.position.x, 1.2, 0);
+
   composer.render();
 }
 
@@ -303,21 +298,23 @@ function animate() {
    RESET
 ===================== */
 function reset() {
-  [...scenery, ...obstacles, ...gifts].forEach(o => scene.remove(o));
-  scenery.length = obstacles.length = gifts.length = 0;
+  obstacles.forEach(o => scene.remove(o));
+  gifts.forEach(g => scene.remove(g));
+  obstacles.length = gifts.length = 0;
   score = 0;
   combo = 1;
+  santa.position.set(0, 1, 0);
+  yVelocity = 0;
+  grounded = true;
 }
 
 /* =====================
-   START GAME
+   START
 ===================== */
-function startGame() {
+document.getElementById("startBtn").onclick = () => {
   document.getElementById("overlay").style.display = "none";
   started = true;
-}
-
-document.getElementById("startBtn").onclick = startGame;
+};
 
 /* =====================
    UTILS
@@ -327,7 +324,7 @@ function rand(a, b) {
 }
 
 /* =====================
-   BOOTSTRAP LOOP
+   BOOTSTRAP
 ===================== */
 requestAnimationFrame(animate);
 </script>
