@@ -4,7 +4,12 @@
 <meta charset="UTF-8">
 <title>Santa's Midnight Dash 3D</title>
 <style>
-html, body { margin: 0; overflow: hidden; background: black; }
+html, body {
+  margin: 0;
+  overflow: hidden;
+  background: black;
+  font-family: system-ui;
+}
 
 #overlay {
   position: fixed;
@@ -16,7 +21,6 @@ html, body { margin: 0; overflow: hidden; background: black; }
   background: radial-gradient(circle, #0b1d3a, #000);
   z-index: 10;
   color: white;
-  font-family: system-ui;
 }
 
 #overlay h1 {
@@ -44,7 +48,6 @@ html, body { margin: 0; overflow: hidden; background: black; }
   top: 10px;
   left: 10px;
   color: white;
-  font-family: system-ui;
 }
 </style>
 </head>
@@ -53,7 +56,7 @@ html, body { margin: 0; overflow: hidden; background: black; }
 <div id="overlay">
   <h1>🎄 Santa’s Midnight Dash 🎄</h1>
   <button id="startBtn">START GAME</button>
-  <p style="opacity:.7">Arrow keys to move</p>
+  <p style="opacity:.7">← → Move</p>
 </div>
 
 <div id="ui"></div>
@@ -68,9 +71,9 @@ html, body { margin: 0; overflow: hidden; background: black; }
    CORE SETUP
 ===================== */
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x020611, 10, 60);
+scene.fog = new THREE.Fog(0x020611, 10, 80);
 
-const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 150);
 camera.position.set(0, 3.5, 8);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -82,26 +85,29 @@ renderer.toneMappingExposure = 1.1;
 document.body.appendChild(renderer.domElement);
 
 /* =====================
-   POST FX
+   POST PROCESSING
 ===================== */
 const composer = new THREE.EffectComposer(renderer);
 composer.addPass(new THREE.RenderPass(scene, camera));
-composer.addPass(new THREE.UnrealBloomPass(
-  new THREE.Vector2(innerWidth, innerHeight),
-  1.2, 0.4, 0.85
-));
+composer.addPass(
+  new THREE.UnrealBloomPass(
+    new THREE.Vector2(innerWidth, innerHeight),
+    1.2, 0.4, 0.85
+  )
+);
 
 addEventListener("resize", () => {
-  camera.aspect = innerWidth/innerHeight;
+  camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
 });
 
 /* =====================
-   LIGHTS
+   LIGHTING
 ===================== */
 scene.add(new THREE.AmbientLight(0x404080, 0.4));
+
 const moon = new THREE.DirectionalLight(0xbfd9ff, 2);
 moon.position.set(10, 20, -10);
 moon.castShadow = true;
@@ -111,43 +117,90 @@ scene.add(moon);
    GROUND
 ===================== */
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(200, 200),
+  new THREE.PlaneGeometry(300, 300),
   new THREE.MeshStandardMaterial({ color: 0xffffff })
 );
-ground.rotation.x = -Math.PI/2;
+ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
 /* =====================
-   PLAYER
+   PLAYER (SANTA)
 ===================== */
 const santa = new THREE.Group();
+
 const body = new THREE.Mesh(
-  new THREE.BoxGeometry(1,1.5,0.8),
+  new THREE.BoxGeometry(1, 1.5, 0.8),
   new THREE.MeshStandardMaterial({ color: 0xcc0000, emissive: 0x330000 })
 );
+
 const head = new THREE.Mesh(
-  new THREE.SphereGeometry(0.4,24,24),
+  new THREE.SphereGeometry(0.4, 24, 24),
   new THREE.MeshStandardMaterial({ color: 0xffddcc, emissive: 0x331100 })
 );
 head.position.y = 1.2;
+
 body.castShadow = head.castShadow = true;
 santa.add(body, head);
 santa.position.y = 1;
 scene.add(santa);
 
 /* =====================
-   GAMEPLAY OBJECTS
+   WORLD OBJECTS
 ===================== */
+const scenery = [];
 const obstacles = [];
 const gifts = [];
 
+function spawnTree(z) {
+  const t = new THREE.Mesh(
+    new THREE.ConeGeometry(0.8, 2.5, 8),
+    new THREE.MeshStandardMaterial({ color: 0x0b5d1e })
+  );
+  t.position.set(rand(-10, 10), 1.25, z);
+  t.castShadow = true;
+  scene.add(t);
+  scenery.push(t);
+}
+
+function spawnHouse(z) {
+  const h = new THREE.Group();
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 1.5, 2),
+    new THREE.MeshStandardMaterial({ color: 0x552200 })
+  );
+
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(1.8, 1, 4),
+    new THREE.MeshStandardMaterial({ color: 0x330000 })
+  );
+  roof.position.y = 1.25;
+  roof.rotation.y = Math.PI / 4;
+
+  const window = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.6, 0.6),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffaa,
+      emissive: 0xffff55
+    })
+  );
+  window.position.set(0, 0, 1.01);
+
+  base.castShadow = roof.castShadow = true;
+  h.add(base, roof, window);
+
+  h.position.set(rand(-12, 12), 0.75, z);
+  scene.add(h);
+  scenery.push(h);
+}
+
 function spawnObstacle() {
   const o = new THREE.Mesh(
-    new THREE.BoxGeometry(1, rand(1,2), 1),
+    new THREE.BoxGeometry(1, rand(1, 2), 1),
     new THREE.MeshStandardMaterial({ color: 0x333333 })
   );
-  o.position.set(rand(-4,4), o.geometry.parameters.height/2, -40);
+  o.position.set(rand(-4, 4), o.geometry.parameters.height / 2, -60);
   o.castShadow = true;
   scene.add(o);
   obstacles.push(o);
@@ -161,7 +214,7 @@ function spawnGift() {
       emissive: 0x00aa00
     })
   );
-  g.position.set(rand(-4,4), 1.5, -40);
+  g.position.set(rand(-4, 4), 1.5, -60);
   scene.add(g);
   gifts.push(g);
 }
@@ -182,11 +235,16 @@ let score = 0;
 let combo = 1;
 
 /* =====================
-   LOOP
+   MAIN LOOP
 ===================== */
 function animate() {
   requestAnimationFrame(animate);
-  if (!started) return;
+
+  // Always render (even before start)
+  if (!started) {
+    composer.render();
+    return;
+  }
 
   if (keys.ArrowLeft) santa.position.x -= 0.2;
   if (keys.ArrowRight) santa.position.x += 0.2;
@@ -195,30 +253,40 @@ function animate() {
   camera.position.x += (santa.position.x - camera.position.x) * 0.08;
   camera.lookAt(santa.position.x, 1.2, 0);
 
+  if (Math.random() < 0.03) spawnTree(-100);
+  if (Math.random() < 0.01) spawnHouse(-120);
   if (Math.random() < 0.02) spawnObstacle();
   if (Math.random() < 0.015) spawnGift();
 
-  obstacles.forEach((o,i)=>{
+  scenery.forEach((s, i) => {
+    s.position.z += speed;
+    if (s.position.z > 15) {
+      scene.remove(s);
+      scenery.splice(i, 1);
+    }
+  });
+
+  obstacles.forEach((o, i) => {
     o.position.z += speed;
     if (o.position.z > 5) {
       scene.remove(o);
-      obstacles.splice(i,1);
+      obstacles.splice(i, 1);
     }
     if (o.position.distanceTo(santa.position) < 1) reset();
   });
 
-  gifts.forEach((g,i)=>{
+  gifts.forEach((g, i) => {
     g.position.z += speed;
     g.rotation.y += 0.05;
     if (g.position.z > 5) {
       scene.remove(g);
-      gifts.splice(i,1);
+      gifts.splice(i, 1);
     }
     if (g.position.distanceTo(santa.position) < 1) {
       score += 100 * combo;
       combo += 0.5;
       scene.remove(g);
-      gifts.splice(i,1);
+      gifts.splice(i, 1);
     }
   });
 
@@ -235,34 +303,33 @@ function animate() {
    RESET
 ===================== */
 function reset() {
-  obstacles.forEach(o=>scene.remove(o));
-  gifts.forEach(g=>scene.remove(g));
-  obstacles.length = gifts.length = 0;
+  [...scenery, ...obstacles, ...gifts].forEach(o => scene.remove(o));
+  scenery.length = obstacles.length = gifts.length = 0;
   score = 0;
   combo = 1;
 }
 
 /* =====================
-   START
+   START GAME
 ===================== */
 function startGame() {
   document.getElementById("overlay").style.display = "none";
   started = true;
-  animate();
 }
 
 document.getElementById("startBtn").onclick = startGame;
 
-addEventListener("keydown", e => {
-  if (!started && (e.code === "Enter" || e.code === "Space")) {
-    startGame();
-  }
-});
-
 /* =====================
    UTILS
 ===================== */
-function rand(a,b){ return Math.random()*(b-a)+a }
+function rand(a, b) {
+  return Math.random() * (b - a) + a;
+}
+
+/* =====================
+   BOOTSTRAP LOOP
+===================== */
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>
